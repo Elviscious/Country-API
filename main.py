@@ -19,8 +19,6 @@ SessionLocal = sessionmaker(autoflush=False, autocommit=False, bind=engine)
 Base = declarative_base()
 
 # Updated Country model with correct field name
-
-
 class Country(Base):
     __tablename__ = "countries"
     id = Column(Integer, primary_key=True, index=True)
@@ -28,16 +26,12 @@ class Country(Base):
     capital = Column(String(255), nullable=True)
     region = Column(String(255), nullable=True)
     population = Column(Integer, nullable=False)
-    # Allow null per requirement
-    currency_code = Column(String(10), nullable=True)
-    # Allow null per requirement
-    exchange_rate = Column(Float, nullable=True)
-    # Allow null per requirement
-    estimated_gdp = Column(Float, nullable=True)
+    currency_code = Column(String(10), nullable=True)  # Allow null per requirement
+    exchange_rate = Column(Float, nullable=True)       # Allow null per requirement
+    estimated_gdp = Column(Float, nullable=True)       # Allow null per requirement
     flag_url = Column(String(255), nullable=True)
     last_refreshed_at = Column(DateTime, default=datetime.now(timezone.utc),
                                onupdate=datetime.now(timezone.utc))
-
 
 def get_db():
     db = SessionLocal()
@@ -46,11 +40,9 @@ def get_db():
     finally:
         db.close()
 
-
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
-
 
 @app.post("/countries/refresh")
 def refresh_countries(db: Session = Depends(get_db)):
@@ -68,8 +60,7 @@ def refresh_countries(db: Session = Depends(get_db)):
 
     try:
         # Fetch exchange rates
-        rates_response = requests.get(
-            "https://open.er-api.com/v6/latest/USD", timeout=10)
+        rates_response = requests.get("https://open.er-api.com/v6/latest/USD", timeout=10)
         rates_response.raise_for_status()
         rates_data = rates_response.json()
         exchange_rates = rates_data.get("rates", {})
@@ -116,11 +107,9 @@ def refresh_countries(db: Session = Depends(get_db)):
                 if rate:
                     exchange_rate = rate
                     random_multiplier = randint(1000, 2000)
-                    estimated_gdp = (
-                        population * random_multiplier) / exchange_rate
+                    estimated_gdp = (population * random_multiplier) / exchange_rate
 
-            existing_country = db.query(Country).filter(
-                Country.name.ilike(name)).first()
+            existing_country = db.query(Country).filter(Country.name.ilike(name)).first()
             if existing_country:
                 existing_country.capital = capital
                 existing_country.region = region
@@ -165,25 +154,19 @@ def refresh_countries(db: Session = Depends(get_db)):
         })
 
     total_countries = db.query(Country).count()
-    last_refreshed = db.query(Country).order_by(
-        Country.last_refreshed_at.desc()).first()
-    last_refreshed_at = last_refreshed.last_refreshed_at.isoformat(
-    ) if last_refreshed else "N/A"
+    last_refreshed = db.query(Country).order_by(Country.last_refreshed_at.desc()).first()
+    last_refreshed_at = last_refreshed.last_refreshed_at.isoformat() if last_refreshed else "N/A"
     return {
         "message": f"Database refreshed with {total_countries} countries.",
         "last_refreshed_at": last_refreshed_at
     }
 
-
 @app.get("/countries")
 def get_countries(
     db: Session = Depends(get_db),
-    region: str | None = Query(
-        None, description="Filter by region (e.g., Africa)"),
-    currency: str | None = Query(
-        None, description="Filter by currency code (e.g., NGN)"),
-    sort: str | None = Query(
-        None, description="Sort order (e.g., name_asc, gdp_desc)")
+    region: str | None = Query(None, description="Filter by region (e.g., Africa)"),
+    currency: str | None = Query(None, description="Filter by currency code (e.g., NGN)"),
+    sort: str | None = Query(None, description="Sort order (e.g., name_asc, gdp_desc)")
 ):
     query = db.query(Country)
 
@@ -220,21 +203,17 @@ def get_countries(
         "last_refreshed_at": country.last_refreshed_at.isoformat()
     } for country in countries]
 
-
 @app.get("/countries/image")
 def get_summary_image():
     if not os.path.exists(IMAGE_PATH):
         return JSONResponse(status_code=404, content={"error": "Summary image not found"})
     return FileResponse(IMAGE_PATH, media_type="image/png")
 
-
 @app.get("/countries/{country_name}")
 def get_country_by_name(country_name: str, db: Session = Depends(get_db)):
-    country = db.query(Country).filter(
-        Country.name.ilike(country_name)).first()
+    country = db.query(Country).filter(Country.name.ilike(country_name)).first()
     if not country:
-        raise HTTPException(status_code=404, detail={
-                            "error": "Country not found"})
+        raise HTTPException(status_code=404, detail={"error": "Country not found"})
     return {
         "id": country.id,
         "name": country.name,
@@ -248,38 +227,30 @@ def get_country_by_name(country_name: str, db: Session = Depends(get_db)):
         "last_refreshed_at": country.last_refreshed_at.isoformat()
     }
 
-
 @app.delete("/countries/{country_name}")
 def delete_country_by_name(country_name: str, db: Session = Depends(get_db)):
     country_query = db.query(Country).filter(Country.name.ilike(country_name))
     country = country_query.first()
     if not country:
-        raise HTTPException(status_code=404, detail={
-                            "error": "Country not found"})
+        raise HTTPException(status_code=404, detail={"error": "Country not found"})
     country_query.delete(synchronize_session=False)
     db.commit()
     return {"message": f"Country '{country_name}' deleted successfully."}
 
-
 @app.get("/status")
 def get_status(db: Session = Depends(get_db)):
     total_countries = db.query(Country).count()
-    last_refreshed = db.query(Country).order_by(
-        Country.last_refreshed_at.desc()).first()
+    last_refreshed = db.query(Country).order_by(Country.last_refreshed_at.desc()).first()
     return {
         "total_countries": total_countries,
         "last_refreshed_at": last_refreshed.last_refreshed_at.isoformat() if last_refreshed else None
     }
 
-
 def _get_summary_image(db: Session):
     total_countries = db.query(Country).count()
-    top_countries = db.query(Country).order_by(
-        Country.estimated_gdp.desc()).limit(5).all()
-    latest_country = db.query(Country).order_by(
-        Country.last_refreshed_at.desc()).first()
-    last_refreshed_at = latest_country.last_refreshed_at.strftime(
-        "%Y-%m-%d %H:%M:%S UTC") if latest_country else "N/A"
+    top_countries = db.query(Country).order_by(Country.estimated_gdp.desc()).limit(5).all()
+    latest_country = db.query(Country).order_by(Country.last_refreshed_at.desc()).first()
+    last_refreshed_at = latest_country.last_refreshed_at.strftime("%Y-%m-%d %H:%M:%S UTC") if latest_country else "N/A"
 
     width, height = 600, 400
     background_color = "#333333"
@@ -297,17 +268,13 @@ def _get_summary_image(db: Session):
         mono_font = ImageFont.load_default()
 
     y_offset = 30
-    d.text((30, y_offset), "Country Data Cache Summary",
-           fill="#4CAF50", font=title_font)
+    d.text((30, y_offset), "Country Data Cache Summary", fill="#4CAF50", font=title_font)
     y_offset += 40
-    d.text((30, y_offset),
-           f"Total Countries: {total_countries}", fill=text_color, font=body_font)
+    d.text((30, y_offset), f"Total Countries: {total_countries}", fill=text_color, font=body_font)
     y_offset += 30
-    d.text((30, y_offset),
-           f"Last Refreshed: {last_refreshed_at}", fill=text_color, font=body_font)
+    d.text((30, y_offset), f"Last Refreshed: {last_refreshed_at}", fill=text_color, font=body_font)
     y_offset += 50
-    d.text((30, y_offset), "--- Top 5 by Estimated GDP ---",
-           fill="#FFC107", font=body_font)
+    d.text((30, y_offset), "--- Top 5 by Estimated GDP ---", fill="#FFC107", font=body_font)
     y_offset += 30
 
     for i, country in enumerate(top_countries):
