@@ -131,11 +131,9 @@ def refresh_countries(db: Session = Depends(get_db)):
                 )
                 db.add(new_country)
 
-        # Commit database changes
         db.commit()
 
     except Exception as e:
-        # Rollback on any error to ensure no partial updates
         db.rollback()
         if isinstance(e, HTTPException):
             raise e
@@ -285,3 +283,4 @@ def _get_summary_image(db: Session):
 
     os.makedirs(CACHE_DIR, exist_ok=True)
     img.save(IMAGE_PATH)
+
